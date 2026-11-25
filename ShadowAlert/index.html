@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Safe Route Recommendation</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div id="sidebar">
+  <h3>🚦 Route Options</h3>
+  <ul id="routeList"></ul>
+</div>
+<button id="finishBtn">🏁 Feedback for Route</button>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="script.js"></script>
+
+<script src="sos.js"></script>
+<button id="sosBtn" class="sos-btn">🚨 SOS</button>
+
+</body>
+</html>

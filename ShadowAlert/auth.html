@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShadowAlert — Safe Route Navigation</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <style>
+    :root {
+      --bg:        #f4f4f2;
+      --surface:   #ffffff;
+      --border:    #e2e2de;
+      --text:      #1a1a18;
+      --muted:     #8a8a82;
+      --accent:    #2563eb;
+      --accent-dk: #1d4ed8;
+      --accent-lt: #dbeafe;
+      --danger:    #dc2626;
+      --success:   #16a34a;
+      --radius:    12px;
+      --shadow:    0 4px 24px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+    }
+
+    /* ========== LEFT PANEL ========== */
+    .left-panel {
+      flex: 1.1;
+      display: flex;
+      flex-direction: column;
+      padding: 48px 56px;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .left-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 80%, rgba(37,99,235,.07) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 80% 10%, rgba(37,99,235,.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-icon svg { width: 20px; height: 20px; fill: white; }
+
+    .brand-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      letter-spacing: -.3px;
+      color: var(--text);
+    }
+
+    .hero-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      z-index: 1;
+      padding: 32px 0;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-lt);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 100px;
+      width: fit-content;
+      margin-bottom: 20px;
+    }
+
+    .hero-tag span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(.8); }
+    }
+
+    .hero-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(32px, 4vw, 48px);
+      line-height: 1.12;
+      letter-spacing: -.5px;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .hero-desc {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 420px;
+      margin-bottom: 36px;
+    }
+
+    /* ========== MINI MAP ========== */
+    .map-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: relative;
+      max-width: 520px;
+    }
+
+    .map-card-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .map-card-header .dot-row { display: flex; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #ffbd2e; }
+    .dot-g { background: #28ca41; }
+
+    .map-card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: .4px;
+    }
+
+    #minimap {
+      height: 240px;
+      width: 100%;
+      z-index: 0;
+    }
+
+    /* Hide all Leaflet attribution text */
+    .leaflet-control-attribution {
+      display: none !important;
+    }
+
+    .map-overlay-badge {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 999;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+
+    .score-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #16a34a;
+      animation: pulse 2s infinite;
+    }
+
+    /* ========== STATS ROW ========== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+      max-width: 520px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeUp .5s forwards;
+    }
+
+    .stat-card:nth-child(1) { animation-delay: .1s; }
+    .stat-card:nth-child(2) { animation-delay: .2s; }
+    .stat-card:nth-child(3) { animation-delay: .3s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: var(--text);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    /* ========== RIGHT PANEL ========== */
+    .right-panel {
+      flex: 0 0 520px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 56px 56px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+    }
+
+    .auth-box {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .auth-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 26px;
+      margin-bottom: 6px;
+      letter-spacing: -.3px;
+    }
+
+    .auth-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    /* Tabs */
+    .tab-row {
+      display: flex;
+      background: var(--bg);
+      border-radius: 9px;
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .tab-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+
+    /* Form */
+    .form-panel { display: none; }
+    .form-panel.active { display: block; animation: fadeIn .25s; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: .2px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 13px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    .field input::placeholder { color: #b0b0a8; }
+
+    .forgot-link {
+      display: block;
+      text-align: right;
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      margin-top: -6px;
+      margin-bottom: 18px;
+      font-weight: 500;
+    }
+
+    .forgot-link:hover { text-decoration: underline; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover { background: var(--accent-dk); }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .divider {
+      text-align: center;
+      position: relative;
+      margin: 18px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 40%;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .divider::before { left: 0; }
+    .divider::after { right: 0; }
+
+    .terms {
+      font-size: 11.5px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 16px;
+      line-height: 1.6;
+    }
+
+    .terms a { color: var(--accent); text-decoration: none; }
+
+    /* Alert */
+    .alert {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      display: none;
+      font-weight: 500;
+    }
+
+    .alert.error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; display: block; }
+    .alert.success { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; display: block; }
+
+    /* Forgot panel */
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 20px;
+      font-weight: 500;
+      transition: color .2s;
+    }
+
+    .back-link:hover { color: var(--accent); }
+
+    /* Footer */
+    .left-footer {
+      font-size: 12px;
+      color: var(--muted);
+      z-index: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      body { flex-direction: column; }
+      .left-panel { padding: 32px 24px; }
+      .right-panel { flex: none; border-left: none; border-top: 1px solid var(--border); padding: 32px 24px; }
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* Signout banner */
+    .signout-banner {
+      display: none;
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #16a34a;
+      align-items: center;
+      gap: 10px;
+    }
+    .signout-banner.show { display: flex; }
+  </style>
+</head>
+<body>
+
+<!-- ============ LEFT PANEL ============ -->
+<div class="left-panel">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2zm-1 13.5l-3-3 1.41-1.41L11 12.67l4.59-4.58L17 9.5l-6 6z"/>
+      </svg>
+    </div>
+    <span class="brand-name">ShadowAlert</span>
+  </div>
+
+  <div class="hero-section">
+    <div class="hero-tag">
+      <span></span>
+      Live Safety Intelligence
+    </div>
+
+    <h1 class="hero-title">
+      Avoid trouble spots<br>
+      with <em>one tap.</em>
+    </h1>
+
+    <p class="hero-desc">
+      ShadowAlert analyses crime data, crowd patterns, and real user
+      experiences to recommend the safest route — not just the shortest one.
+      Built for women, students, and night-time commuters.
+    </p>
+
+    <!-- Mini Map -->
+    <div class="map-card">
+      <div class="map-card-header">
+        <div class="dot-row">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+        </div>
+        <span class="map-card-title">PUNE — LIVE SAFETY MAP</span>
+        <div style="width:52px"></div>
+      </div>
+      <div id="minimap"></div>
+      <div class="map-overlay-badge">
+        <div class="score-dot"></div>
+        Safety heatmap active
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">3×</div>
+        <div class="stat-label">Route options scored</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">24/7</div>
+        <div class="stat-label">Time-aware analysis</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Community-driven data</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="left-footer">© 2025 ShadowAlert · Sakshi, Kalyani, Janhavi, Tejshree</div>
+</div>
+
+<!-- ============ RIGHT PANEL ============ -->
+<div class="right-panel">
+  <div class="auth-box">
+
+    <!-- Login / Signup tabs -->
+    <div id="authForms">
+      <h2 class="auth-heading">Welcome back</h2>
+      <p class="auth-sub">Sign in to your ShadowAlert account</p>
+
+            <!-- Signout banner -->
+      <div class="signout-banner" id="signoutBanner">
+        ✅ You've been signed out successfully. See you next time!
+      </div>
+
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchTab('login')">Sign In</button>
+        <button class="tab-btn" onclick="switchTab('signup')">Create Account</button>
+      </div>
+
+      <div id="alertBox" class="alert"></div>
+
+      <!-- LOGIN -->
+      <div id="loginPanel" class="form-panel active">
+        <div class="field">
+          <label>Email address</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
+        <a class="forgot-link" onclick="showForgot()">Forgot password?</a>
+        <button class="btn-primary" onclick="doLogin()">
+          <span id="loginBtnText">Sign In</span>
+          <div class="spinner" id="loginSpinner"></div>
+        </button>
+      </div>
+
+      <!-- SIGNUP -->
+      <div id="signupPanel" class="form-panel">
+        <div class="field">
+          <label for="signupName">Full name</label>
+          <input type="text" id="signupName" placeholder="Your name"/>
+        </div>
+        <div class="field">
+          <label for="signupEmail">Email address</label>
+          <input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="field">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" placeholder="Min. 8 characters" autocomplete="new-password"/>
+        </div>
+        <div class="field" style="margin-bottom:18px">
+          <label for="signupConfirm">Confirm password</label>
+          <input type="password" id="signupConfirm" placeholder="Repeat password"/>
+        </div>
+        <button class="btn-primary" onclick="doSignup()">
+          <span id="signupBtnText">Create Account</span>
+          <div class="spinner" id="signupSpinner"></div>
+        </button>
+        <p class="terms">By signing up you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</p>
+      </div>
+    </div>
+
+    <!-- FORGOT PASSWORD (hidden by default) -->
+    <div id="forgotPanel" style="display:none">
+      <div class="back-link" onclick="hideForgot()">
+        ← Back to sign in
+      </div>
+      <h2 class="auth-heading">Reset password</h2>
+      <p class="auth-sub">Enter your email and we'll send a reset link.</p>
+
+      <div id="forgotAlert" class="alert"></div>
+
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="forgotEmail" placeholder="you@example.com"/>
+      </div>
+      <button class="btn-primary" onclick="doForgot()">
+        <span id="forgotBtnText">Send Reset Link</span>
+        <div class="spinner" id="forgotSpinner"></div>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Show signout banner if redirected from signout
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('signedout') === '1') {
+    const banner = document.getElementById('signoutBanner');
+    if (banner) banner.classList.add('show');
+    // Clean URL without reload
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+})();
+</script>
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+<script>
+// ============ SUPABASE ============
+
+window.sb = window.supabase.createClient(
+  "https://xrnbpwonwurpvjzrketa.supabase.co",
+  "sb_publishable_6buYP7ae4rzMViMGgyKBbA_GRsHJQb8"
+);
+// If already logged in, skip straight to planner
+
+// ============ MINI MAP ============
+const minimap = L.map('minimap', {
+  zoomControl: false,
+  scrollWheelZoom: false,
+  dragging: false,
+  doubleClickZoom: false,
+  attributionControl: false
+}).setView([18.5204, 73.8567], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(minimap);
+
+// Fake heatmap points around Pune for demo
+const heatPoints = [
+  [18.516, 73.856, 0.9], [18.519, 73.861, 0.7], [18.510, 73.848, 0.5],
+  [18.524, 73.870, 0.8], [18.530, 73.852, 0.6], [18.506, 73.862, 0.4],
+  [18.528, 73.843, 0.7], [18.514, 73.875, 0.5], [18.536, 73.859, 0.6],
+  [18.501, 73.855, 0.8], [18.521, 73.840, 0.3], [18.542, 73.866, 0.5],
+  [18.508, 73.872, 0.7], [18.518, 73.835, 0.4], [18.533, 73.876, 0.6]
+];
+
+L.heatLayer(heatPoints, { radius: 22, blur: 15, maxZoom: 17 }).addTo(minimap);
+
+// Draw a demo safe route (green polyline)
+const routeCoords = [
+  [18.502, 73.853], [18.507, 73.847], [18.513, 73.842],
+  [18.521, 73.838], [18.528, 73.843], [18.535, 73.851]
+];
+L.polyline(routeCoords, { color: '#16a34a', weight: 4, opacity: .85 }).addTo(minimap);
+
+// Markers
+L.circleMarker([18.502, 73.853], { radius: 6, color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }).addTo(minimap);
+L.circleMarker([18.535, 73.851], { radius: 6, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1 }).addTo(minimap);
+
+// ============ TABS ============
+function switchTab(tab) {
+  clearAlert();
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0) === (tab === 'login'));
+  });
+  document.getElementById('loginPanel').classList.toggle('active', tab === 'login');
+  document.getElementById('signupPanel').classList.toggle('active', tab === 'signup');
+
+  const h = document.querySelector('.auth-heading');
+  const s = document.querySelector('.auth-sub');
+  if (tab === 'login') {
+    h.textContent = 'Welcome back';
+    s.textContent = 'Sign in to your ShadowAlert account';
+  } else {
+    h.textContent = 'Create account';
+    s.textContent = 'Start navigating safer today';
+  }
+}
+
+// ============ FORGOT PANEL ============
+function showForgot() {
+  document.getElementById('authForms').style.display = 'none';
+  document.getElementById('forgotPanel').style.display = 'block';
+  clearForgotAlert();
+}
+
+function hideForgot() {
+  document.getElementById('authForms').style.display = 'block';
+  document.getElementById('forgotPanel').style.display = 'none';
+  clearAlert();
+}
+
+// ============ ALERT HELPERS ============
+function showAlert(msg, type = 'error') {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg;
+  el.className = 'alert ' + type;
+}
+
+function clearAlert() {
+  const el = document.getElementById('alertBox');
+  el.className = 'alert';
+  el.textContent = '';
+}
+
+function showForgotAlert(msg, type = 'error') {
+  const el = document.getElementById('forgotAlert');
+  el.textContent = msg;
+  el.className = 'alert ' + type;
+}
+
+function clearForgotAlert() {
+  const el = document.getElementById('forgotAlert');
+  el.className = 'alert';
+  el.textContent = '';
+}
+
+function setLoading(btnText, spinner, loading) {
+  document.getElementById(btnText).style.display = loading ? 'none' : 'inline';
+  document.getElementById(spinner).style.display = loading ? 'block' : 'none';
+}
+
+// ============ LOGIN ============
+async function doLogin() {
+  clearAlert();
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+
+  if (!email || !pass) { showAlert('Please fill in all fields.'); return; }
+
+  setLoading('loginBtnText', 'loginSpinner', true);
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+
+  setLoading('loginBtnText', 'loginSpinner', false);
+
+  if (error) {
+    showAlert(error.message);
+  } else {
+    showAlert('✓ Signed in! Redirecting…', 'success');
+    window.location.replace('planner.html');
+  }
+}
+
+// ============ SIGNUP ============
+async function doSignup() {
+  clearAlert();
+  const name    = document.getElementById('signupName').value.trim();
+  const email   = document.getElementById('signupEmail').value.trim();
+  const pass    = document.getElementById('signupPassword').value;
+  const confirm = document.getElementById('signupConfirm').value;
+
+  if (!name || !email || !pass || !confirm) { showAlert('Please fill in all fields.'); return; }
+  if (pass !== confirm) { showAlert('Passwords do not match.'); return; }
+  if (pass.length < 8) { showAlert('Password must be at least 8 characters.'); return; }
+
+  setLoading('signupBtnText', 'signupSpinner', true);
+
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password: pass,
+    options: { data: { full_name: name } }
+  });
+
+  setLoading('signupBtnText', 'signupSpinner', false);
+  if (!error) {
+    const user = data.user;
+
+    // 🔥 INSERT INTO YOUR TABLE
+    await sb.from("users").insert([{
+      id: user.id,
+      full_name: name,
+      email: email
+    }]);
+  }
+  if (error) {
+    showAlert(error.message);
+  } else {
+    showAlert('✓ Account created! Check your email to confirm.', 'success');
+  }
+}
+
+// ============ FORGOT PASSWORD ============
+async function doForgot() {
+  clearForgotAlert();
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) { showForgotAlert('Please enter your email address.'); return; }
+
+  setLoading('forgotBtnText', 'forgotSpinner', true);
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/auth.html'
+  });
+
+  setLoading('forgotBtnText', 'forgotSpinner', false);
+
+  if (error) {
+    showForgotAlert(error.message);
+  } else {
+    showForgotAlert('✓ Reset link sent! Check your inbox.', 'success');
+  }
+}
+
+// Enter key support
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('loginPanel').classList.contains('active')) doLogin();
+  else doSignup();
+});
+</script>
+<script>
+(async () => {
+  // Don't auto-redirect if user explicitly signed out
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('signedout') === '1') return;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) window.location.replace('planner.html');
+  } catch(e) {
+    console.warn('Auth check failed:', e);
+  }
+})();
+</script>
+</body>
+</html>

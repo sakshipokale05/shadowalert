@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShadowAlert — Plan Your Route</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    :root {
+      --bg:        #f2f2f0;
+      --surface:   #ffffff;
+      --border:    #e0e0db;
+      --text:      #181816;
+      --muted:     #888880;
+      --accent:    #2563eb;
+      --accent-dk: #1d4ed8;
+      --accent-lt: #dbeafe;
+      --green:     #16a34a;
+      --green-lt:  #dcfce7;
+      --red:       #dc2626;
+      --orange:    #ea580c;
+      --radius:    14px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.06);
+      --shadow:    0 4px 24px rgba(0,0,0,.09), 0 1px 4px rgba(0,0,0,.04);
+      --shadow-lg: 0 12px 48px rgba(0,0,0,.12), 0 4px 16px rgba(0,0,0,.06);
+    }
+
+    /* ========== DARK MODE ========== */
+    [data-theme="dark"] {
+      --bg:        #0f0f0e;
+      --surface:   #1a1a18;
+      --border:    #2a2a27;
+      --text:      #f0f0ed;
+      --muted:     #6a6a62;
+      --accent:    #3b82f6;
+      --accent-dk: #2563eb;
+      --accent-lt: #1e3a6e;
+      --green:     #22c55e;
+      --green-lt:  #14291e;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.3);
+      --shadow:    0 4px 24px rgba(0,0,0,.4), 0 1px 4px rgba(0,0,0,.2);
+      --shadow-lg: 0 12px 48px rgba(0,0,0,.5), 0 4px 16px rgba(0,0,0,.3);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      transition: background-color .25s, border-color .25s, color .15s;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* =========== TOPBAR =========== */
+    .topbar {
+      height: 58px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 900;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-icon svg { width: 18px; height: 18px; fill: white; }
+
+    .brand-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 19px;
+      color: var(--text);
+    }
+
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px 5px 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .btn-ghost {
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .18s;
+    }
+
+    .btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+    /* =========== LAYOUT =========== */
+    .page-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 440px 1fr;
+      height: calc(100vh - 58px);
+    }
+
+    /* =========== LEFT PLANNER PANEL =========== */
+    .planner-panel{
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+}
+
+    .planner-inner{
+    flex:1;
+    overflow-y:auto;
+
+    padding:28px;
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+}
+
+    /* Section headers */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* =========== LOCATION CARD =========== */
+    .location-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: visible;
+      z-index: 1000; /* allow dropdown to escape */
+    }
+
+    .loc-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 16px;
+      position: relative;
+    }
+
+    .loc-row + .loc-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .loc-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .loc-icon.start { background: var(--accent-lt); }
+    .loc-icon.end   { background: var(--green-lt); }
+
+    .loc-icon svg { width: 16px; height: 16px; }
+    .loc-icon.start svg { fill: var(--accent); }
+    .loc-icon.end   svg { fill: var(--green); }
+
+    .loc-input-wrap { flex: 1; min-width: 0; }
+
+    .loc-input {
+      width: 100%;
+      border: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      outline: none;
+      padding: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: auto;
+      z-index: 100;
+      position: relative;
+    }
+
+    .loc-input::placeholder { color: #b4b4ac; font-weight: 400; }
+
+    .loc-label-tag {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .loc-clear {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--border);
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s;
+    }
+    .loc-clear:hover { background: var(--muted); }
+    .loc-clear svg { width: 12px; height: 12px; fill: var(--surface); }
+    .loc-clear.visible { display: flex; }
+
+    /* ===== AUTOCOMPLETE PORTAL (fixed, always on top) ===== */
+    .ac-portal {
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      z-index: 99999;
+      width: 380px;
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: none;
+    }
+
+    .ac-portal.open { display: block; }
+
+    .ac-portal::-webkit-scrollbar { width: 5px; }
+    .ac-portal::-webkit-scrollbar-track { background: transparent; }
+    .ac-portal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+    .ac-portal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* Current location row */
+    .ac-cur-loc {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background .12s;
+    }
+
+    .ac-cur-loc:hover { background: var(--bg); }
+
+    .ac-cur-loc-icon {
+      width: 30px; height: 30px;
+      background: var(--accent-lt);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ac-cur-loc-icon svg { width: 15px; height: 15px; fill: var(--accent); }
+
+    .ac-cur-loc-text { font-size: 13px; font-weight: 600; color: var(--accent); }
+    .ac-cur-loc-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .ac-item {
+      padding: 11px 14px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: background .12s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .ac-item:hover { background: var(--bg); }
+
+    .ac-item-icon-wrap {
+      width: 30px; height: 30px;
+      background: var(--bg);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .ac-item-name { font-weight: 600; font-size: 13px; line-height: 1.3; }
+    .ac-item-detail { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+    .ac-no-results {
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .ac-loading {
+      padding: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .ac-spin {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* Swap button */
+    .swap-btn {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      transition: all .18s;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .swap-btn:hover { background: var(--accent); border-color: var(--accent); }
+    .swap-btn:hover svg { fill: white; }
+    .swap-btn svg { width: 14px; height: 14px; fill: var(--muted); transition: fill .18s; }
+
+    /* =========== MODE SELECTOR =========== */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .mode-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 12px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .mode-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--accent-lt);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    .mode-card:hover::before { opacity: .4; }
+    .mode-card.selected { border-color: var(--accent); }
+    .mode-card.selected::before { opacity: 1; }
+
+    .mode-emoji {
+      font-size: 28px;
+      display: block;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+      transition: transform .2s;
+    }
+
+    .mode-card:hover .mode-emoji,
+    .mode-card.selected .mode-emoji { transform: scale(1.12); }
+
+    .mode-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      position: relative;
+      z-index: 1;
+    }
+
+    .mode-card.selected .mode-name { color: var(--accent); }
+
+    .mode-check {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0);
+      transition: all .2s;
+      z-index: 2;
+    }
+
+    .mode-check svg { width: 9px; height: 9px; fill: white; }
+    .mode-card.selected .mode-check { opacity: 1; transform: scale(1); }
+
+    /* =========== TIME SLOT =========== */
+    .time-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .time-tab {
+      flex: 1;
+      padding: 9px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all .18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .time-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .time-tab.active { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+
+    /* =========== SAFETY PREFERENCE =========== */
+    .pref-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+
+    .pref-left { display: flex; align-items: center; gap: 10px; }
+    .pref-icon { font-size: 18px; }
+    .pref-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .pref-desc { font-size: 11px; color: var(--muted); }
+
+    /* Toggle */
+    .toggle {
+      width: 40px;
+      height: 22px;
+      background: var(--border);
+      border-radius: 100px;
+      position: relative;
+      cursor: pointer;
+      transition: background .2s;
+      flex-shrink: 0;
+    }
+
+    .toggle.on { background: var(--accent); }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+
+    .toggle.on::after { transform: translateX(18px); }
+
+    /* =========== CTA BUTTON =========== */
+    .cta-section{
+        padding:20px 28px 28px;
+        margin-top:20px;
+    }
+
+    .btn-find {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background .18s, transform .1s, box-shadow .18s;
+      box-shadow: 0 4px 16px rgba(37,99,235,.3);
+    }
+
+    .btn-find:hover {
+      background: var(--accent-dk);
+      box-shadow: 0 6px 24px rgba(37,99,235,.4);
+    }
+
+    .btn-find:active { transform: scale(.98); }
+    .btn-find:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .btn-find svg { width: 18px; height: 18px; fill: white; }
+    .btn-feedback{
+        width:100%;
+        margin-top:12px;
+        padding:15px;
+
+        border:none;
+        border-radius:12px;
+
+        background:#16a34a;
+        color:white;
+
+        font-size:15px;
+        font-weight:600;
+
+        cursor:pointer;
+      
+        transition:.25s;
+    }
+
+    .btn-feedback:hover{
+        background:#15803d;
+    }
+    
+    /* =========== MAP PANEL =========== */
+    .map-panel {
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index:1;
+    }
+
+    .leaflet-control-attribution { display: none !important; }
+
+    /* Hide leaflet routing container panel */
+    .leaflet-routing-container { display: none !important; }
+
+    /* Map toast */
+    .map-toast {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 18px;
+      border-radius: 100px;
+      z-index: 600;
+      white-space: nowrap;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+
+    .map-toast.show { opacity: 1; }
+
+    /* Route result chips */
+    .result-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 600;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+
+    .result-bar.show { opacity: 1; pointer-events: all; }
+
+    .result-chip {
+      background: rgba(255,255,255,.96);
+      backdrop-filter: blur(10px);
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: all .18s;
+    }
+
+    .result-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .result-chip.best { border-color: var(--green); }
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Validation error */
+    /* ========== DIRECTIONS PANEL ========== */
+    .directions-panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 280px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+      z-index: 700;
+      max-height: calc(100% - 80px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateX(20px);
+      pointer-events: none;
+      transition: opacity .25s, transform .25s;
+    }
+
+    .directions-panel.show {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: all;
+    }
+
+    .dir-header {
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .dir-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dir-close {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      transition: background .15s;
+    }
+    .dir-close:hover { background: var(--border); }
+
+    .dir-summary {
+      padding: 10px 14px;
+      background: var(--accent-lt);
+      display: flex;
+      gap: 16px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dir-sum-item { font-size: 12px; font-weight: 600; color: var(--accent); }
+    .dir-sum-label { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    .dir-steps {
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .dir-steps::-webkit-scrollbar { width: 3px; }
+    .dir-steps::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .dir-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .dir-step:last-child { border-bottom: none; }
+    .dir-step:hover { background: var(--bg); }
+
+    .dir-step-num {
+      width: 22px; height: 22px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .dir-step.active .dir-step-num { background: var(--accent); border-color: var(--accent); color: white; }
+
+    .dir-step-text { font-size: 12px; color: var(--text); line-height: 1.45; }
+    .dir-step-dist { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Vehicle marker on route */
+    .vehicle-marker {
+      font-size: 22px;
+      line-height: 1;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
+      transform-origin: center;
+    }
+
+    /* Dark result chips */
+    [data-theme="dark"] .result-chip {
+      background: rgba(26,26,24,.96);
+      color: var(--text);
+    }
+
+    .field-err {
+      font-size: 11px;
+      color: var(--red);
+      margin-top: 6px;
+      display: none;
+    }
+    .field-err.show { display: block; }
+
+    /* Dark mode leaflet adjustments */
+    [data-theme="dark"] .leaflet-tile { filter: brightness(.75) invert(1) contrast(3) hue-rotate(200deg) saturate(.3) brightness(.7); }
+    [data-theme="dark"] .leaflet-container { background: #1a1a18; }
+    .topbar-right { position: relative; }
+
+    .user-chip {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .user-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+      min-width: 230px;
+      z-index: 9999;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(-8px) scale(.97);
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+    }
+
+    .user-dropdown.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: all;
+    }
+
+    .dd-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dd-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .dd-email {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .dd-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 10px 16px 6px;
+    }
+
+    /* Theme tiles */
+    .theme-tiles {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .theme-tile {
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 6px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      background: var(--bg);
+    }
+
+    .theme-tile:hover { border-color: var(--accent); }
+    .theme-tile.active { border-color: var(--accent); background: var(--accent-lt); }
+
+    .theme-tile-icon { font-size: 20px; display: block; margin-bottom: 5px; }
+    .theme-tile-label { font-size: 11px; font-weight: 600; color: var(--text); }
+    .theme-tile.active .theme-tile-label { color: var(--accent); }
+
+    .dd-divider { height: 1px; background: var(--border); margin: 0; }
+
+    .dd-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .dd-item:hover { background: var(--bg); }
+    .dd-item.danger { color: var(--red); }
+    .dd-item svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+
+    /* ========== USER DROPDOWN ========== */
+    /* ========== FEEDBACK MODAL ========== */
+
+    .feedback-modal{
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,.45);
+        display:none;
+        justify-content:center;
+        align-items:center;
+        z-index:99999;
+    }
+
+    .feedback-card{
+        width:360px;
+        background:var(--surface);
+        color:var(--text);
+        border-radius:16px;
+        padding:25px;
+        box-shadow:var(--shadow-lg);
+        max-width:90%;
+    }
+
+    .feedback-card h2{
+        margin-bottom:8px;
+    }
+
+    .feedback-card p{
+        color:var(--muted);
+        margin-bottom:20px;
+    }
+
+    .feedback-btn{
+        width:100%;
+        padding:14px;
+        margin-bottom:12px;
+        border:none;
+        border-radius:10px;
+        cursor:pointer;
+        font-size:15px;
+        font-weight:600;
+        transition:.2s;
+
+    }
+
+    .safe-btn{
+        background:var(--green);
+        color:white;
+    }
+
+    .safe-btn:hover{
+        opacity:.9;
+    }
+
+    .moderate-btn{
+        background:#f59e0b;
+        color:white;
+    }
+
+    .moderate-btn:hover{
+        opacity:.9;
+    }
+
+    .risky-btn{
+        background:var(--red);
+        color:white;
+    }
+
+    .risky-btn:hover{
+        opacity:.9;
+    }
+
+    .cancel-btn{
+        background:var(--border);
+        color:var(--text);
+    }
+
+    .cancel-btn:hover{
+        background:var(--muted);
+        color:white;
+    }
+  </style>
+    
+</head>
+<body>
+
+<!-- =========== TOPBAR =========== -->
+<header class="topbar">
+  <a class="brand" href="auth.html">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2zm-1 13.5l-3-3 1.41-1.41L11 12.67l4.59-4.58L17 9.5l-6 6z"/></svg>
+    </div>
+    <span class="brand-name">ShadowAlert</span>
+  </a>
+
+  <div class="topbar-right">
+    <button class="btn-ghost" onclick="triggerSOS()">🚨 SOS</button>
+    <div class="user-chip" onclick="toggleDropdown(event)">
+      <div class="user-avatar" id="userInitial">U</div>
+      <span id="userEmail">user</span>
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--muted);margin-left:2px"><path d="M7 10l5 5 5-5z"/></svg>
+    </div>
+
+    <!-- Dropdown -->
+    <div class="user-dropdown" id="userDropdown">
+      <div class="dd-header">
+        <div class="dd-name" id="ddName">Account</div>
+        <div class="dd-email" id="ddEmail">—</div>
+      </div>
+
+      <div class="dd-section-label">Appearance</div>
+      <div class="theme-tiles">
+        <div class="theme-tile active" data-theme-val="light" onclick="setTheme('light',this)">
+          <span class="theme-tile-icon">☀️</span>
+          <div class="theme-tile-label">Light</div>
+        </div>
+        <div class="theme-tile" data-theme-val="dark" onclick="setTheme('dark',this)">
+          <span class="theme-tile-icon">🌙</span>
+          <div class="theme-tile-label">Dark</div>
+        </div>
+        <div class="theme-tile" data-theme-val="system" onclick="setTheme('system',this)">
+          <span class="theme-tile-icon">💻</span>
+          <div class="theme-tile-label">System</div>
+        </div>
+      </div>
+
+      <div class="dd-divider"></div>
+      <div class="dd-item danger" onclick="signOut()">
+        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        Sign out
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- =========== BODY =========== -->
+<div class="page-body">
+
+  <!-- ===== LEFT PANEL ===== -->
+  <aside class="planner-panel">
+    <div class="planner-inner">
+
+      <!-- ROUTE INPUTS -->
+      <div>
+        <div class="section-label">Your Route</div>
+        <div class="location-card" style="position:relative">
+
+          <!-- Source -->
+          <div class="loc-row">
+            <div class="loc-icon start">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+            </div>
+            <div class="loc-input-wrap">
+              <div class="loc-label-tag">From</div>
+              <input class="loc-input" id="srcInput" placeholder="Search starting point…" autocomplete="off"
+                oninput="onLocInput(this,'src')" onfocus="onFocus('src')" onblur="onBlur('src')"/>
+            </div>
+            <button class="loc-clear" id="srcClear" onclick="clearLoc('src')" tabindex="-1">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+
+          <!-- Swap -->
+          <div class="swap-btn" onclick="swapLocations()" title="Swap">
+            <svg viewBox="0 0 24 24"><path d="M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3L5 6.99h3V14h2V6.99h3L9 3z"/></svg>
+          </div>
+
+          <!-- Destination -->
+          <div class="loc-row">
+            <div class="loc-icon end">
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            </div>
+            <div class="loc-input-wrap">
+              <div class="loc-label-tag">To</div>
+              <input class="loc-input" id="dstInput" placeholder="Search destination…" autocomplete="off"
+                oninput="onLocInput(this,'dst')" onfocus="onFocus('dst')" onblur="onBlur('dst')"/>
+            </div>
+            <button class="loc-clear" id="dstClear" onclick="clearLoc('dst')" tabindex="-1">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field-err" id="locErr">Please enter both a start and destination.</div>
+      </div>
+
+      <!-- TRAVEL MODE -->
+      <div>
+        <div class="section-label">Travel Mode</div>
+        <div class="mode-grid">
+          <div class="mode-card selected" data-mode="car" onclick="selectMode(this)">
+            <div class="mode-check"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+            <span class="mode-emoji">🚗</span>
+            <div class="mode-name">Car</div>
+          </div>
+          <div class="mode-card" data-mode="bike" onclick="selectMode(this)">
+            <div class="mode-check"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+            <span class="mode-emoji">🏍️</span>
+            <div class="mode-name">Bike</div>
+          </div>
+          <div class="mode-card" data-mode="foot" onclick="selectMode(this)">
+            <div class="mode-check"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>
+            <span class="mode-emoji">🚶</span>
+            <div class="mode-name">Walk</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIME SLOT -->
+      <div>
+        <div class="section-label">Travel Time</div>
+        <div class="time-tabs">
+          <button class="time-tab" data-slot="day" onclick="selectTime(this)">☀️ Day</button>
+          <button class="time-tab" data-slot="evening" onclick="selectTime(this)">🌆 Evening</button>
+          <button class="time-tab active" data-slot="auto" onclick="selectTime(this)">🕐 Now</button>
+          <button class="time-tab" data-slot="night" onclick="selectTime(this)">🌙 Night</button>
+        </div>
+      </div>
+
+      <!-- PREFERENCES -->
+      <div>
+        <div class="section-label">Safety Preferences</div>
+        <div class="pref-row">
+          <div class="pref-left">
+            <span class="pref-icon">🔥</span>
+            <div>
+              <div class="pref-title">Show crime heatmap</div>
+              <div class="pref-desc">Visualise danger zones on map</div>
+            </div>
+          </div>
+          <div class="toggle on" id="toggleHeat" onclick="toggleHeatmap(this)"></div>
+        </div>
+        <div class="pref-row">
+          <div class="pref-left">
+            <span class="pref-icon">🛡️</span>
+            <div>
+              <div class="pref-title">Prioritise safety over speed</div>
+              <div class="pref-desc">May add extra distance</div>
+            </div>
+          </div>
+          <div class="toggle on" id="toggleSafety" onclick="toggleSafetyPref(this)"></div>
+        </div>
+        <div class="pref-row" style="margin-bottom:0">
+          <div class="pref-left">
+            <span class="pref-icon">👥</span>
+            <div>
+              <div class="pref-title">Consider crowd factor</div>
+              <div class="pref-desc">Crowd reduces perceived risk</div>
+            </div>
+          </div>
+          <div class="toggle on" id="toggleCrowd" onclick="toggleCrowdPref(this)"></div>
+        </div>
+      </div>
+
+    <!-- ROUTE OPTIONS -->
+<div style="
+    padding:0;
+    margin-top:20px;
+">
+    <h4 style="margin-bottom:10px;">🚦 Route Options</h4>
+
+    <ul id="routeList"
+        style="
+        list-style:none;
+        padding:0;
+        font-size:13px;
+        margin-bottom:20px;
+        ">
+    </ul>
+</div>
+
+<!-- CTA -->
+<div class="cta-section">
+
+    <button class="btn-find"
+            id="findBtn"
+            onclick="findRoutes()">
+
+        <svg viewBox="0 0 24 24">
+            <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
+        </svg>
+
+        <span id="findBtnText">
+            Find Safe Routes
+        </span>
+
+        <div class="spinner" id="findSpinner"></div>
+
+    </button>
+
+    <button
+        id="finishBtn"
+        class="btn-feedback"
+        onclick="openFeedbackModal()">
+
+        🏁 Finish Journey
+
+    </button>
+
+</div>
+
+</div> <!-- planner-inner -->
+
+</aside>
+
+  <!-- ===== MAP PANEL ===== -->
+  <div class="map-panel">
+    <div id="liveLocationControls">
+    <button id="startShareBtn">📍 Start Live Location</button>
+    <button id="stopShareBtn">🛑 Stop Sharing</button>
+    <button id="copyLinkBtn" style="display:none;">
+    📋 Copy Share Link
+</button>
+</div>
+    <div id="map"></div>
+
+    <!-- Toast -->
+    <div class="map-toast" id="mapToast"></div>
+      <!-- routeList rendered in sidebar -->
+    <!-- Result chips -->
+    <div class="result-bar" id="resultBar"></div>
+
+    <!-- Directions panel -->
+    <div class="directions-panel" id="directionsPanel">
+      <div class="dir-header">
+        <div class="dir-title">
+          <span id="dirModeIcon"></span>
+          Turn-by-turn Directions
+        </div>
+        <button class="dir-close" onclick="document.getElementById('directionsPanel').classList.remove('show')">✕</button>
+      </div>
+      <div class="dir-summary" id="dirSummary"></div>
+      <div class="dir-steps" id="dirSteps"></div>
+    </div>
+  </div>
+
+</div><!-- /page-body -->
+
+<!-- Autocomplete portals — rendered outside layout so they never clip -->
+<div class="ac-portal" id="srcPortal"></div>
+<div class="ac-portal" id="dstPortal"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+<script>
+// ============================================================
+// SUPABASE — single client, shared as window.sb for script.js
+// ============================================================
+window.sb = window.supabase.createClient(
+  "https://xrnbpwonwurpvjzrketa.supabase.co",
+  "sb_publishable_6buYP7ae4rzMViMGgyKBbA_GRsHJQb8"
+);
+
+// ============================================================
+// AUTH — one check, no loops, no onAuthStateChange
+// ============================================================
+(async () => {
+  try {
+    const { data: { session } } = await window.sb.auth.getSession();
+    if (!session) {
+      window.location.replace('auth.html');
+      return;
+    }
+    fillUserInfo(session.user);
+  } catch(e) {
+    console.warn('Auth check failed:', e);
+    // Still show the page rather than leave it blank
+  }
+})();
+
+function fillUserInfo(user) {
+  const email     = user.email || '';
+  const name      = user.user_metadata?.full_name || email;
+  const firstName = name.split(' ')[0] || email;
+  const el = id => document.getElementById(id);
+  if (el('userEmail'))   el('userEmail').textContent   = firstName;
+  if (el('userInitial')) el('userInitial').textContent = (name[0] || 'U').toUpperCase();
+  if (el('ddName'))      el('ddName').textContent      = name || 'Account';
+  if (el('ddEmail'))     el('ddEmail').textContent     = email;
+}
+
+async function signOut() {
+  await window.sb.auth.signOut();
+  window.location.replace('auth.html?signedout=1');
+}
+
+// ============================================================
+// THEME
+// ============================================================
+function applyTheme(val) {
+  const root = document.documentElement;
+  if (val === 'dark') root.setAttribute('data-theme', 'dark');
+  else if (val === 'light') root.removeAttribute('data-theme');
+  else window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? root.setAttribute('data-theme', 'dark')
+    : root.removeAttribute('data-theme');
+}
+
+function setTheme(val, el) {
+  localStorage.setItem('sa-theme', val);
+  applyTheme(val);
+  document.querySelectorAll('.theme-tile').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+(function () {
+  const saved = localStorage.getItem('sa-theme') || 'light';
+  applyTheme(saved);
+  const tile = document.querySelector(`.theme-tile[data-theme-val="${saved}"]`);
+  if (tile) {
+    document.querySelectorAll('.theme-tile').forEach(t => t.classList.remove('active'));
+    tile.classList.add('active');
+  }
+})();
+
+// ============================================================
+// DROPDOWN
+// ============================================================
+function toggleDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('userDropdown').classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  const dd = document.getElementById('userDropdown');
+  if (dd) dd.classList.remove('open');
+});
+
+// ============================================================
+// MODE SELECT — syncs to window.selectedMode for script.js
+// ============================================================
+let selectedMode = 'car';
+
+function selectMode(el) {
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedMode = el.dataset.mode;
+  window.selectedMode = selectedMode;
+}
+
+// ============================================================
+// TIME SLOT — syncs to window.selectedTimeSlot for script.js
+// ============================================================
+let selectedTimeSlot = 'auto';
+
+function selectTime(el) {
+  document.querySelectorAll('.time-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedTimeSlot = el.dataset.slot;
+  window.selectedTimeSlot = selectedTimeSlot;
+
+  if (el.dataset.slot === 'night') {
+    setTheme('dark', document.querySelector('.theme-tile[data-theme-val="dark"]'));
+  } else if (el.dataset.slot === 'day') {
+    setTheme('light', document.querySelector('.theme-tile[data-theme-val="light"]'));
+  }
+
+  if (typeof updateHeatmapByTime === 'function') updateHeatmapByTime();
+}
+
+// ============================================================
+// TOGGLE HANDLERS
+// ============================================================
+function toggleHeatmap(el) {
+  el.classList.toggle('on');
+  if (typeof updateHeatmapByTime === 'function') updateHeatmapByTime();
+  showToast(el.classList.contains('on') ? '🔥 Heatmap ON' : '🔥 Heatmap OFF', 1500);
+}
+
+function toggleSafetyPref(el) {
+  el.classList.toggle('on');
+  showToast(el.classList.contains('on') ? '🛡️ Safety priority ON' : '🛡️ Safety priority OFF', 1500);
+}
+
+function toggleCrowdPref(el) {
+  el.classList.toggle('on');
+  showToast(el.classList.contains('on') ? '👥 Crowd factor ON' : '👥 Crowd factor OFF', 1500);
+}
+
+// ============================================================
+// FIND ROUTES — calls window.findRoutes from script.js
+// ============================================================
+function findRoutes() {
+  const locErr = document.getElementById('locErr');
+  if (locErr) locErr.classList.remove('show');
+
+  if (!window.srcLatLng || !window.dstLatLng) {
+    if (locErr) locErr.classList.add('show');
+    return;
+  }
+
+  // Set loading state
+  const btnText = document.getElementById('findBtnText');
+  const spinner = document.getElementById('findSpinner');
+  const btn     = document.getElementById('findBtn');
+  if (btnText) btnText.style.display = 'none';
+  if (spinner) spinner.style.display = 'block';
+  if (btn)     btn.disabled = true;
+
+  // script.js owns routing
+  if (typeof window.findRoutes === 'function') {
+    window.findRoutes();
+  }
+
+  // Reset button after 3s max
+  setTimeout(() => {
+    if (btnText) btnText.style.display = 'inline';
+    if (spinner) spinner.style.display = 'none';
+    if (btn)     btn.disabled = false;
+  }, 3000);
+}
+
+// ============================================================
+// GEOCODING — autocomplete portals
+// ============================================================
+let debounceTimer = {};
+let activePortal  = null;
+
+const srcIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+  width:14px;
+  height:14px;
+  background:#2563eb;
+  border:2.5px solid white;
+  border-radius:50%;
+  box-shadow:0 2px 8px rgba(37,99,235,.5)">
+  </div>`,
+  iconSize: [14,14], iconAnchor: [7,7]
+});
+const dstIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+  width:14px;
+  height:14px;
+  background:#16a34a;
+  border:2.5px solid white;
+  border-radius:50%;
+  box-shadow:0 2px 8px rgba(22,163,74,.5)"></div>`,
+  iconSize: [14,14], iconAnchor: [7,7]
+});
+
+// Expose to script.js
+window.srcLatLng = null;
+window.dstLatLng = null;
+let srcMarker = null, dstMarker = null;
+
+function positionPortal(inputEl, portalId) {
+  const portal = document.getElementById(portalId);
+  const card   = inputEl.closest('.location-card') || inputEl.closest('.loc-row');
+  const row    = inputEl.closest('.loc-row').getBoundingClientRect();
+  const rect   = card.getBoundingClientRect();
+  portal.style.top   = (row.bottom + 4) + 'px';
+  portal.style.left  = rect.left + 'px';
+  portal.style.width = Math.max(rect.width, 340) + 'px';
+}
+
+function onLocInput(input, key) {
+  const q = input.value.trim();
+  const clearBtn = document.getElementById(key + 'Clear');
+  if (clearBtn) clearBtn.classList.toggle('visible', q.length > 0);
+  clearTimeout(debounceTimer[key]);
+  if (q.length < 3) { closePortal(key); return; }
+  const portal = document.getElementById(key + 'Portal');
+  positionPortal(input, key + 'Portal');
+  portal.innerHTML = `<div class="ac-loading"><div class="ac-spin"></div> Searching…</div>`;
+  portal.classList.add('open');
+  activePortal = key;
+  debounceTimer[key] = setTimeout(() => geocode(q, key, input), 400);
+}
+
+async function geocode(q, key, input) {
+  try {
+    const params = new URLSearchParams({
+      q: q.toLowerCase().includes('pune') ? q : q + ', Pune',
+      format: 'json', limit: 12, addressdetails: 1,
+      countrycodes: 'in', 'accept-language': 'en',
+      viewbox: '73.72,18.40,73.99,18.63', bounded: 0, dedupe: 1
+    });
+    const res  = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
+    const data = await res.json();
+    if (data.length === 0) {
+      const p2   = new URLSearchParams({ q, format:'json', limit:12, addressdetails:1, countrycodes:'in', 'accept-language':'en' });
+      const res2 = await fetch(`https://nominatim.openstreetmap.org/search?${p2}`);
+      renderPortal(await res2.json(), key, input);
+    } else {
+      renderPortal(data, key, input);
+    }
+  } catch(e) { closePortal(key); }
+}
+
+function renderPortal(results, key, input) {
+  const portal = document.getElementById(key + 'Portal');
+  portal.innerHTML = '';
+  positionPortal(input, key + 'Portal');
+
+  if (key === 'src') {
+    const curRow = document.createElement('div');
+    curRow.className = 'ac-cur-loc';
+    curRow.innerHTML = `
+      <div class="ac-cur-loc-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+      </div>
+      <div>
+        <div class="ac-cur-loc-text">Use current location</div>
+        <div class="ac-cur-loc-sub">GPS — your position right now</div>
+      </div>`;
+    curRow.addEventListener('mousedown', e => { e.preventDefault(); useCurrentLocation(input, key); });
+    portal.appendChild(curRow);
+  }
+
+  if (!results.length) {
+    const noRes = document.createElement('div');
+    noRes.className = 'ac-no-results';
+    noRes.textContent = 'No results found. Try a broader search.';
+    portal.appendChild(noRes);
+    portal.classList.add('open');
+    return;
+  }
+
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'ac-item';
+    const cls = r.class||'', type = r.type||'';
+    const icon =
+      cls==='highway' ? '🛣️' :
+      type==='city'||type==='town' ? '🏙️' :
+      type==='village'||type==='suburb' ? '🏘️' :
+      cls==='amenity'&&type==='hospital' ? '🏥' :
+      cls==='amenity'&&type==='school' ? '🏫' :
+      cls==='amenity'&&type==='university' ? '🎓' :
+      cls==='amenity'&&type==='restaurant' ? '🍽️' :
+      cls==='amenity'&&type==='fuel' ? '⛽' :
+      cls==='shop' ? '🛒' :
+      cls==='railway' ? '🚉' :
+      cls==='aeroway' ? '✈️' :
+      cls==='leisure'&&type==='park' ? '🌳' : '📍';
+    const parts  = r.display_name.split(',');
+    const name   = parts[0].trim();
+    const detail = parts.slice(1,4).map(s=>s.trim()).filter(Boolean).join(', ');
+    item.innerHTML = `
+      <div class="ac-item-icon-wrap">${icon}</div>
+      <div>
+        <div class="ac-item-name">${name}</div>
+        ${detail ? `<div class="ac-item-detail">${detail}</div>` : ''}
+      </div>`;
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const latlng = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+      selectLocation(key, latlng, name, detail ? name+', '+detail.split(',')[0] : name, input);
+    });
+    portal.appendChild(item);
+  });
+  portal.classList.add('open');
+  activePortal = key;
+}
+
+function useCurrentLocation(input, key) {
+  closePortal(key);
+  navigator.geolocation.getCurrentPosition(pos => {
+    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    selectLocation(key, latlng, 'My Location', 'My Location', input);
+  }, () => showToast('⚠️ Could not get location', 2000));
+}
+
+function selectLocation(key, latlng, name, displayText, input) {
+  input.value = displayText;
+  const clearBtn = document.getElementById(key + 'Clear');
+  if (clearBtn) clearBtn.classList.add('visible');
+
+  if (key === 'src') {
+    window.srcLatLng = latlng;
+    window.setSource && window.setSource(latlng);
+    if (srcMarker) map.removeLayer(srcMarker);
+    srcMarker = L.marker(latlng, { icon: srcIcon }).addTo(map)
+      .bindPopup(`<b>From:</b> ${name}`, { offset:[0,-6] }).openPopup();
+  } else {
+    window.dstLatLng = latlng;
+    window.setDestination && window.setDestination(latlng);
+    if (dstMarker) map.removeLayer(dstMarker);
+    dstMarker = L.marker(latlng, { icon: dstIcon }).addTo(map)
+      .bindPopup(`<b>To:</b> ${name}`, { offset:[0,-6] }).openPopup();
+  }
+
+  if (window.srcLatLng && window.dstLatLng) {
+    map.fitBounds(L.latLngBounds([window.srcLatLng, window.dstLatLng]), { padding:[80,80] });
+  } else {
+    map.setView(latlng, 14, { animate: true });
+  }
+  closePortal(key);
+}
+
+function clearLoc(key) {
+  document.getElementById(key+'Input').value = '';
+  const cb = document.getElementById(key+'Clear');
+  if (cb) cb.classList.remove('visible');
+  if (key==='src') { window.srcLatLng=null; if(srcMarker){map.removeLayer(srcMarker);srcMarker=null;} }
+  else             { window.dstLatLng=null; if(dstMarker){map.removeLayer(dstMarker);dstMarker=null;} }
+  closePortal(key);
+}
+
+function swapLocations() {
+  const srcIn = document.getElementById('srcInput');
+  const dstIn = document.getElementById('dstInput');
+  [srcIn.value, dstIn.value] = [dstIn.value, srcIn.value];
+  [window.srcLatLng, window.dstLatLng] = [window.dstLatLng, window.srcLatLng];
+  document.getElementById('srcClear').classList.toggle('visible', srcIn.value.length > 0);
+  document.getElementById('dstClear').classList.toggle('visible', dstIn.value.length > 0);
+  if (srcMarker) map.removeLayer(srcMarker);
+  if (dstMarker) map.removeLayer(dstMarker);
+  srcMarker = null; dstMarker = null;
+  if (window.srcLatLng) srcMarker = L.marker(window.srcLatLng, {icon:srcIcon}).addTo(map).bindPopup(`<b>From:</b> ${srcIn.value.split(',')[0]}`,{offset:[0,-6]});
+  if (window.dstLatLng) dstMarker = L.marker(window.dstLatLng, {icon:dstIcon}).addTo(map).bindPopup(`<b>To:</b> ${dstIn.value.split(',')[0]}`,{offset:[0,-6]});
+  if (window.srcLatLng && window.dstLatLng) map.fitBounds(L.latLngBounds([window.srcLatLng,window.dstLatLng]),{padding:[80,80]});
+}
+
+function onFocus(key) {
+  const portal = document.getElementById(key+'Portal');
+  const input  = document.getElementById(key+'Input');
+  positionPortal(input, key+'Portal');
+  if (portal.children.length) portal.classList.add('open');
+  else if (key==='src') renderPortal([], key, input);
+}
+
+function onBlur(key)       { setTimeout(() => closePortal(key), 200); }
+function closePortal(key)  { document.getElementById(key+'Portal').classList.remove('open'); if(activePortal===key) activePortal=null; }
+
+window.addEventListener('resize', () => {
+  ['src','dst'].forEach(k => {
+    const p = document.getElementById(k+'Portal');
+    if (p.classList.contains('open')) positionPortal(document.getElementById(k+'Input'), k+'Portal');
+  });
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, duration=2000) {
+  let t = document.getElementById('mapToast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ============================================================
+// SOS
+// ============================================================
+function openSOS()  { if (typeof triggerSOS === 'function') triggerSOS(); }
+function resetCompass() { showToast('↑ Map reset to North', 1500); }
+
+function openFeedbackModal() {
+
+    if (selectedRouteIndex == null) {
+        alert("Please select a route first.");
+        return;
+    }
+
+    document.getElementById("feedbackModal").style.display = "flex";
+}
+
+function closeFeedbackModal() {
+
+    document.getElementById("feedbackModal").style.display = "none";
+}
+
+</script>
+<div id="feedbackModal" class="feedback-modal">
+
+    <div class="feedback-card">
+
+        <h2>Journey Feedback</h2>
+
+        <p>How was your journey?</p>
+
+        <button class="feedback-btn safe-btn" onclick="submitFeedback('safe')">
+            😊 Safe
+        </button>
+
+        <button class="feedback-btn moderate-btn" onclick="submitFeedback('moderate')">
+            😐 Moderate
+        </button>
+
+        <button class="feedback-btn risky-btn" onclick="submitFeedback('risky')">
+            😟 Risky
+        </button>
+
+        <button class="feedback-btn cancel-btn" onclick="closeFeedbackModal()">
+            Cancel
+        </button>
+
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+<script src="liveLocation.js"></script>
+<script src="sos.js"></script>
+</body>
+</html>
