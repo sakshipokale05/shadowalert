@@ -200,15 +200,3 @@ Change `/shadowalert_fixed/` to match where you host the app (for Netlify at the
 - Self-hosted routing engine
 
 ---
-
-## 🤝 Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-## 📄 License
-
-Distributed under the MIT License. Add a `LICENSE` file to your repo to apply it.
-
-## 👤 Author
-
-Your Name – [@your-github-username](https://github.com/your-github-username)
